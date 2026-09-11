@@ -1,0 +1,18 @@
+[config]
+name="GodotStoreKit"
+binary="godotstorekit.xcframework"
+
+initialization="register_godotstorekit_types"
+deinitialization="unregister_godotstorekit_types"
+
+[dependencies]
+linked=[]
+embedded=[]
+; StoreKit 2 는 iOS 15+ 다. 우리 최소 버전이 그 위여야 한다.
+system=["StoreKit.framework"]
+
+capabilities=[]
+
+files=[]
+
+[plist]
