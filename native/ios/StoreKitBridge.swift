@@ -75,6 +75,13 @@ import StoreKit
     @objc public func fetchProducts(_ requestId: String, ids: [String]) {
         Task {
             do {
+                // **어느 나라 스토어로 물어봤는지 남긴다.**
+                // 가격 통화는 우리가 정하는 게 아니라 **로그인된 계정의 지역**이 정한다.
+                // 화면에 USD 가 뜨면 코드 문제인지 계정 지역인지 이 줄로 갈린다.
+                let front = await Storefront.current
+                Self.note("스토어프론트 \(front?.countryCode ?? "없음")"
+                    + " (없음 = 로그인 안 된 상태라 기기 기본 지역)")
+
                 let got = try await Product.products(for: ids)
                 for p in got { products[p.id] = p }
                 let list = got.map { p -> [String: Any] in
@@ -142,7 +149,14 @@ import StoreKit
                     reply(requestId, "requestPurchase", ["success": false])
                 }
             } catch {
-                fail(sku, "purchase-error", "\(error)")
+                // **예외로 오는 취소를 따로 가른다.** `.userCancelled` 는 결과로도 오고
+                // 예외로도 온다 — 로그인 창이 끼어들면 이쪽이다.
+                // 그때는 **로그인 뒤 다시 눌러야** 산다. 사고가 아니다.
+                let cancelled = (error as? StoreKitError).map {
+                    if case .userCancelled = $0 { return true } else { return false }
+                } ?? false
+                Self.note("구매 예외 — \(error)")
+                fail(sku, cancelled ? "user-cancelled" : "purchase-error", "\(error)")
                 reply(requestId, "requestPurchase", ["success": false])
             }
         }

@@ -10,6 +10,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 DST="$ROOT/ios/plugins/godotstorekit"
 
+# **먼저 비운다.** 덮어쓰기만 하면 예전 빌드의 `.a` 가 남아,
+# 어느 것이 실제로 쓰이는지 헷갈린다 (Info.plist 만 보면 되지만 실제로 한 번 헤맸다).
+rm -rf "$DST"
 mkdir -p "$DST"
 cp -R "$HERE/ios/"* "$DST"/
 for kind in debug release; do
