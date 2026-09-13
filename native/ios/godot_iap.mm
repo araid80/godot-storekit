@@ -50,6 +50,11 @@ static String _next_id() {
 GodotIap::GodotIap() {
 	GodotIapImpl *impl = new GodotIapImpl();
 	if (@available(iOS 15.0, *)) {
+#ifdef DEBUG_ENABLED
+		// 진단은 **디버그 빌드에서만** 파일로 남긴다 (아래 `logging` 주석 참고).
+		// 여기는 `.debug.xcframework` 로만 들어가므로 엔진이 알아서 갈라 준다.
+		[GodotStoreKitBridge setLogging:YES];
+#endif
 		impl->bridge = [[GodotStoreKitBridge alloc] init];
 		impl->relay = [[GodotIapRelay alloc] init];
 		impl->relay.owner = this;

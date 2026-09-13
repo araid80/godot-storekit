@@ -32,8 +32,14 @@ cp "$WORK/GodotStoreKit-Swift.h" "$HARNESS/plugins/godotstorekit/"
 # 하네스의 SConstruct 에 플러그인 이름이 등록돼 있어야 한다
 grep -q "'godotstorekit'" "$HARNESS/SConstruct" || {
   echo "[!!] $HARNESS/SConstruct 의 plugin 목록에 'godotstorekit' 를 넣을 것"; exit 1; }
+# **먼저 지운다.** scons 가 재빌드를 건너뛰어 **옛 라이브러리가 그대로 합쳐진 적이 있다** —
+# 릴리스만 이틀 전 것이어서 디버그 전용 코드가 갈렸는지 확인하다 한참 헤맸다.
+# 산출물이 없으면 건너뛸 수가 없다.
+rm -f "$HARNESS"/bin/libgodotstorekit.arm64-ios.*.a
 ( cd "$HARNESS" && for kind in release debug; do
     scons platform=ios target=$kind arch=arm64 version=4.0 plugin=godotstorekit -j8 >/dev/null
+    [ -f "$HARNESS/bin/libgodotstorekit.arm64-ios.$kind.a" ] || {
+      echo "[!!] $kind 빌드 결과가 없다"; exit 1; }
   done )
 
 echo "[3/4] 합치기"

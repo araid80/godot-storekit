@@ -29,6 +29,10 @@ import StoreKit
 
     @objc public weak var delegate: GodotStoreKitDelegate?
 
+    /// 진단을 파일로 남길 것인가. **기본은 끔** — 배포 빌드에 진단 기록이 쌓이면
+    /// 파일 공유로 사용자에게 보인다. 디버그 빌드에서만 `godot_iap.mm` 이 켠다.
+    @objc public static var logging: Bool = false
+
     /// 받아 둔 상품. `purchase()` 할 때 다시 조회하지 않으려고 들고 있는다.
     private var products: [String: Product] = [:]
     /// 끝나지 않은 트랜잭션. `finishTransaction` 이 id 로 찾는다.
@@ -315,6 +319,7 @@ import StoreKit
     /// iOS 는 `print()` 가 devicectl 콘솔로 안 나오고, Godot 신호로 올려 보내려면
     /// GDScript 쪽 계약을 건드려야 해서 이 길이 가장 싸다.
     private static func note(_ line: String) {
+        guard logging else { return }
         guard let dir = FileManager.default.urls(for: .documentDirectory,
                                                  in: .userDomainMask).first else { return }
         let url = dir.appendingPathComponent("iap.txt")
