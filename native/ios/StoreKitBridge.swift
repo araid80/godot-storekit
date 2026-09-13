@@ -13,6 +13,7 @@
 //  결과는 나중에 신호로 온다).
 
 import Foundation
+import Network
 import StoreKit
 
 @objc public protocol GodotStoreKitDelegate: AnyObject {
@@ -45,8 +46,20 @@ import StoreKit
     private var delivered: Set<String> = []
     private var updates: Task<Void, Never>?
 
+    /// 지금 인터넷이 되는가. **취소와 끊김을 가르는 데 쓴다.**
+    ///
+    /// 결제창이 떠 있는 동안 연결이 끊기면 StoreKit 은 그것을 `userCancelled` 로 준다 —
+    /// 사용자가 누른 취소와 **구별이 안 된다**. 오류만으로는 못 가르므로 상태를 따로 본다.
+    /// `NWPathMonitor` 는 가만히 듣고만 있어 요청을 만들지 않는다.
+    private let monitor = NWPathMonitor()
+    private var online = true
+
     @objc public override init() {
         super.init()
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.online = (path.status == .satisfied)
+        }
+        monitor.start(queue: DispatchQueue(label: "godot.storekit.net"))
     }
 
     // ── 연결 ────────────────────────────────────────────────
@@ -156,11 +169,21 @@ import StoreKit
                 // **예외로 오는 취소를 따로 가른다.** `.userCancelled` 는 결과로도 오고
                 // 예외로도 온다 — 로그인 창이 끼어들면 이쪽이다.
                 // 그때는 **로그인 뒤 다시 눌러야** 산다. 사고가 아니다.
-                let cancelled = (error as? StoreKitError).map {
-                    if case .userCancelled = $0 { return true } else { return false }
-                } ?? false
+                // **네트워크 오류를 따로 가른다.** 인터넷이 없으면 결제창이
+                // 열리기도 전에 여기로 온다 — 영수증이 없으니 검증 쪽 오프라인
+                // 처리에는 영영 안 걸린다. 부르는 쪽이 같은 안내를 띄우게 한다.
+                var code = "purchase-error"
+                if let sk = error as? StoreKitError {
+                    switch sk {
+                    // **끊겨서 닫힌 것을 취소로 넘기지 않는다.** 사용자는 아무것도
+                    // 안 눌렀는데 조용히 끝나면 앱이 먹은 것으로 보인다 (실기 지적).
+                    case .userCancelled: code = online ? "user-cancelled" : "network"
+                    case .networkError: code = "network"
+                    default: break
+                    }
+                }
                 Self.note("구매 예외 — \(error)")
-                fail(sku, cancelled ? "user-cancelled" : "purchase-error", "\(error)")
+                fail(sku, code, "\(error)")
                 reply(requestId, "requestPurchase", ["success": false])
             }
         }
