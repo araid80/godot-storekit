@@ -32,11 +32,28 @@ if ClassDB.class_exists("GodotIap") and ClassDB.can_instantiate("GodotIap"):
 | 갈아 끼운다 | iOS 네이티브 하나 |
 | 버린다 | `GodotIap.framework` · `SwiftGodotRuntime.framework` · `.gdextension` |
 
+## 덤 — 별점 창 (`GodotReview`)
+
+`SKStoreReviewController` 도 StoreKit 이고 `StoreKit.framework` 가 이미 링크돼 있어
+**더 붙일 것이 없다.** 그래서 같은 플러그인에 뒀다.
+
+```gdscript
+if ClassDB.can_instantiate("GodotReview"):
+    ClassDB.instantiate("GodotReview").call("request")
+```
+
+> **자체 별점 창을 그리면 안 된다.** 애플이 제공된 API 를 쓰라고 못 박아 두었다
+> ("we will disallow custom review prompts").
+
+> **띄웠는지는 알 수 없다.** 애플이 365일에 3번으로 묶고 결과를 안 알려 준다 —
+> 반환값이 없고, 부르는 쪽은 "넘겼다" 까지만 안다. 언제 부를지(판 수·날짜·간격)는
+> 게임이 정할 일이라 여기에 두지 않았다.
+
 ## 붙이는 법
 
 ```bash
 git submodule add https://github.com/araid80/godot-storekit addons/storekit
-cd addons/storekit && git checkout v1.0.0 && ./install.sh
+cd addons/storekit && git checkout v1.0.4 && ./install.sh
 ```
 
 그다음 `export_presets.cfg` 의 iOS 프리셋:
