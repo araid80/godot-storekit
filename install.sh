@@ -17,12 +17,13 @@ mkdir -p "$DST"
 cp -R "$HERE/ios/"* "$DST"/
 for kind in debug release; do
   [ -d "$DST/godotstorekit.$kind.xcframework" ] || {
-    echo "[!!] godotstorekit.$kind.xcframework 가 없다 — ./build.sh 를 먼저"; exit 1; }
+    echo "[!!] godotstorekit.$kind.xcframework is missing — run ./build.sh first"; exit 1; }
 done
 
-echo "[OK] iOS 플러그인을 $DST 에 놓았다"
-echo "     export_presets.cfg 의 iOS 프리셋에 적을 것:"
+# 쓰는 사람이 보는 줄이라 영어로 적는다. 코드 주석은 한국어 그대로다.
+echo "[OK] iOS plugin installed into $DST"
+echo "     Add to the iOS preset in export_presets.cfg:"
 echo "       plugins/GodotStoreKit=true"
-echo "       application/min_ios_version=\"15.0\"   (StoreKit 2 의 바닥)"
-echo "     OpenIAP 을 쓰던 프로젝트라면 iOS 쪽을 들어낼 것:"
+echo "       application/min_ios_version=\"15.0\"   (floor of StoreKit 2)"
+echo "     Coming from godot-iap? Remove its iOS half only:"
 echo "       addons/godot-iap/bin/ios/  ·  bin/godot_iap.gdextension"

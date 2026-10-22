@@ -96,8 +96,8 @@ import StoreKit
                 // 가격 통화는 우리가 정하는 게 아니라 **로그인된 계정의 지역**이 정한다.
                 // 화면에 USD 가 뜨면 코드 문제인지 계정 지역인지 이 줄로 갈린다.
                 let front = await Storefront.current
-                Self.note("스토어프론트 \(front?.countryCode ?? "없음")"
-                    + " (없음 = 로그인 안 된 상태라 기기 기본 지역)")
+                Self.note("storefront \(front?.countryCode ?? "none")"
+                    + " (none = not signed in, so the device default region)")
 
                 let got = try await Product.products(for: ids)
                 for p in got { products[p.id] = p }
@@ -131,6 +131,10 @@ import StoreKit
     /// 취소·실패는 `onPurchaseError` 로 간다 — Godot 쪽이 그렇게 듣고 있다.
     @objc public func requestPurchase(_ sku: String) {
         let requestId = "purchase"
+        // **여기서 멎으면 화면에는 아무 일도 안 일어난다.** 결제창이 떠야 하는데
+        // 안 뜨면 사용자는 버튼이 죽은 것으로 본다. 그래서 단계마다 남긴다 —
+        // 한 번 이 자리에서 아무 기록도 없이 멈춰서 원인을 좁힐 수가 없었다.
+        Self.note("purchase requested \(sku) · \(products.count) product(s) cached")
         // **메인 액터에서 돌아야 한다.** `purchase()` 는 결제창을 띄우는데,
         // 백그라운드에서 부르면 창은 떠도 **await 가 재개되지 않는다** —
         // 취소를 눌러도 아무 답이 안 와서 진행 표시가 30초 뒤 스스로 걷혔다 (실기).
@@ -141,15 +145,18 @@ import StoreKit
                 found = (try? await Product.products(for: [sku]))?.first
             }
             guard let product = found else {
+                Self.note("product not found \(sku)")
                 fail(sku, "query-product", "상품을 못 찾았다: \(sku)")
                 reply(requestId, "requestPurchase", ["success": false])
                 return
             }
             products[sku] = product
             do {
+                Self.note("presenting payment sheet \(sku)")
                 let result = try await product.purchase()
                 switch result {
                 case .success(let verification):
+                    Self.note("purchase succeeded \(sku)")
                     await handle(verification, notify: true)
                     reply(requestId, "requestPurchase", ["success": true])
                 case .userCancelled:
@@ -182,7 +189,7 @@ import StoreKit
                     default: break
                     }
                 }
-                Self.note("구매 예외 — \(error)")
+                Self.note("purchase threw — \(error)")
                 fail(sku, code, "\(error)")
                 reply(requestId, "requestPurchase", ["success": false])
             }
@@ -229,8 +236,8 @@ import StoreKit
                 }
             }
 
-            Self.note("소유 조회 — entitlements \(entitled) · all \(allCount)"
-                + " (검증실패 \(unverified) · 환불 \(revoked)) → \(list.count)건")
+            Self.note("owned query — entitlements \(entitled) · all \(allCount)"
+                + " (unverified \(unverified) · revoked \(revoked)) → \(list.count)")
 
             // 여기도 JSON 문자열이다 (`purchasesJson`).
             reply(requestId, "getAvailablePurchases",

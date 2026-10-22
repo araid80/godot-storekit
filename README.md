@@ -1,115 +1,202 @@
 # godot-storekit
 
-Godot 4 iOS 결제 — **StoreKit 2**. `hyodotdev/openiap` 의 **iOS 네이티브만** 갈아 끼운다.
+In-app purchase for **Godot 4 on iOS**, built directly on **StoreKit 2**.
 
-## 왜 있나
+It is a drop-in replacement for the **iOS native half** of
+[`hyodotdev/godot-iap`](https://github.com/hyodotdev/godot-iap) (the Godot plugin
+that implements the [OpenIAP](https://github.com/hyodotdev/openiap) contract).
+The GDScript layer and the whole Android side stay exactly as they are.
 
-OpenIAP 의 iOS 쪽은 **SwiftGodot** 위에 서 있고, SwiftGodot 은 Swift **파라미터 팩**
-(`SignalWithArguments<each T>`)을 써서 **iOS 17 런타임**을 요구한다.
-그 프레임워크(`GodotIap.framework` · `SwiftGodotRuntime.framework`, 둘 다 minos 17.0)가
-앱에 임베드되면 **iOS 15·16 기기에서 dyld 가 로드를 거부해 켜자마자 죽는다.**
+[한국어 README](README.ko.md)
 
-앱스토어는 `Info.plist` 의 `MinimumOSVersion` 만 보고 내려보내므로,
-14.0 이라고 적어 두면 그 사람들에게 배포되고 **전원이 실행 즉시 죽는다.**
+## Why this exists
 
-**StoreKit 2 자체는 iOS 15.0+** 다. 직접 감싸면 15 까지 내려간다.
-(OpenIAP **자체** 패키지도 이미 15.0 이다 — 17 을 요구하는 것은 SwiftGodot 이다.)
+`godot-iap`'s iOS native is built on **SwiftGodot**, which uses Swift parameter
+packs (`SignalWithArguments<each T>`) and therefore requires an **iOS 17
+runtime**. `GodotIap.framework` and `SwiftGodotRuntime.framework` are both
+`minos 17.0`, so once they are embedded, **dyld refuses to load them on iOS 15
+and 16 and the app dies at launch.**
 
-## 무엇을 갈아 끼우나
+That failure is invisible to you: the App Store ships by `MinimumOSVersion` in
+`Info.plist`, so if you declare 15.0 the build goes out to every one of those
+users, every one of them dies instantly, and **no crash report reaches you**
+because the process never gets as far as your code.
 
-OpenIAP 의 `godot_iap.gd`(2,000줄 넘는 GDScript)는 iOS 네이티브를 이렇게 잡는다:
+**StoreKit 2 itself is iOS 15.0+.** Wrapping it directly brings the floor back
+down to 15. (OpenIAP's own package is 15.0 too — the 17 comes from SwiftGodot.)
+
+## What it replaces
+
+`godot_iap.gd` finds its iOS native purely by class name:
 
 ```gdscript
 if ClassDB.class_exists("GodotIap") and ClassDB.can_instantiate("GodotIap"):
     _native_plugin = ClassDB.instantiate("GodotIap")
 ```
 
-**이름만 맞으면 된다.** 그래서 이 플러그인은 `GodotIap` 이라는 ClassDB 클래스를 등록한다.
+So this plugin registers a ClassDB class called `GodotIap` and answers the same
+JSON contract. **Nothing above it changes.**
 
 | | |
 |---|---|
-| 그대로 둔다 | `godot_iap.gd` · `IapTypes` · 게임의 결제 코드 · **안드로이드 전체** |
-| 갈아 끼운다 | iOS 네이티브 하나 |
-| 버린다 | `GodotIap.framework` · `SwiftGodotRuntime.framework` · `.gdextension` |
+| Unchanged | `godot_iap.gd` · `IapTypes` · your purchase code · **all of Android** |
+| Replaced | the iOS native, and only that |
+| Dropped | `GodotIap.framework` · `SwiftGodotRuntime.framework` · the `.gdextension` |
 
-## 덤 — 별점 창 (`GodotReview`)
+## Bonus — the review prompt (`GodotReview`)
 
-`SKStoreReviewController` 도 StoreKit 이고 `StoreKit.framework` 가 이미 링크돼 있어
-**더 붙일 것이 없다.** 그래서 같은 플러그인에 뒀다.
+`SKStoreReviewController` is StoreKit too, and `StoreKit.framework` is already
+linked, so there was nothing extra to add. It lives in the same plugin.
 
 ```gdscript
 if ClassDB.can_instantiate("GodotReview"):
     ClassDB.instantiate("GodotReview").call("request")
 ```
 
-> **자체 별점 창을 그리면 안 된다.** 애플이 제공된 API 를 쓰라고 못 박아 두었다
-> ("we will disallow custom review prompts").
+**Do not draw your own rating dialog.** Apple requires the provided API —
+"we will disallow custom review prompts."
 
-> **띄웠는지는 알 수 없다.** 애플이 365일에 3번으로 묶고 결과를 안 알려 준다 —
-> 반환값이 없고, 부르는 쪽은 "넘겼다" 까지만 안다. 언제 부를지(판 수·날짜·간격)는
-> 게임이 정할 일이라 여기에 두지 않았다.
+**You cannot tell whether it appeared.** Apple caps it at three times per 365
+days and reports nothing back, so `request()` returns nothing: the caller only
+knows the ask was handed over. *When* to ask — plays, days, spacing — is the
+game's decision and is deliberately not in here.
 
-## 붙이는 법
+## Requirements
+
+- Godot 4 — developed and shipped against **4.7.1**
+- **iOS 15.0+**, arm64 device builds (StoreKit has no desktop/simulator store)
+- Xcode with the iOS SDK, for building the app
+- Products registered in App Store Connect, and a sandbox account on the device
+
+**Scope:** non-consumable products, which is what it has shipped with.
+Consumables should work (StoreKit 2 has no consume step) but are untested.
+The subscription payload path exists and is **untested** — see the API table.
+
+## Install
 
 ```bash
 git submodule add https://github.com/araid80/godot-storekit addons/storekit
-cd addons/storekit && git checkout v1.0.5 && ./install.sh
+cd addons/storekit && git checkout v1.0.6 && ./install.sh
 ```
 
-그다음 `export_presets.cfg` 의 iOS 프리셋:
+`install.sh` copies the xcframeworks into `res://ios/plugins/godotstorekit/`,
+because the engine only scans that one directory — a plugin cannot live inside
+its own addon folder.
+
+Then, in the iOS export preset:
 
 ```ini
 plugins/GodotStoreKit=true
 application/min_ios_version="15.0"
 ```
 
-OpenIAP 을 쓰던 프로젝트라면 **iOS 쪽만** 들어낸다 (안드로이드는 그대로 둔다):
+If you are coming from `godot-iap`, remove **only its iOS half** (leave Android
+alone):
 
 ```
-addons/godot-iap/bin/ios/          ← 통째로
-addons/godot-iap/bin/godot_iap.gdextension   ← iOS 전용이라 파일째
+addons/godot-iap/bin/ios/                     ← the whole directory
+addons/godot-iap/bin/godot_iap.gdextension    ← iOS-only, delete the file
 ```
 
-## 다시 빌드해야 할 때
+## It never touches the network
 
-엔진 버전을 올렸을 때만 필요하다. `./build.sh` 가 전부 한다
-(Swift → ObjC++ → `libtool` 로 합치기 → xcframework 두 벌).
-하네스(`godot-ios-plugins`)의 `SConstruct` 에 `'godotstorekit'` 를 넣어 둬야 한다.
+There is no `URLSession`, no socket, no HTTP anywhere in this plugin. It talks
+to StoreKit and to Godot, and to nothing else.
 
-## 두 번 이상 당한 것
+StoreKit 2's signed transaction (`jwsRepresentation`) is handed up in the
+`purchaseToken` field, the same slot Android uses for the Google purchase token.
+**Validating it is your server's job** — this plugin takes no position on how.
 
-전부 **실기에서만** 드러난 것들이다. 데스크톱에는 StoreKit 이 없어 가짜 경로로 돈다.
+## API
 
-- **UI 를 띄우는 StoreKit 호출은 메인 액터에서 불러야 한다.**
-  `product.purchase()` 와 `AppStore.sync()` 를 백그라운드 `Task` 에서 부르면
-  **창은 떠도 `await` 가 재개되지 않는다.** 취소해도 아무 답이 안 오고 화면이 잠긴다.
-  구매만 고치고 복원을 놓쳐서 두 번 겪었다
-- **Godot 신호는 `call_deferred` 로 쏜다.** Swift 의 `Task` 는 백그라운드인데
-  신호를 받는 쪽이 GDScript 라 그 스레드에서 스크립트가 돌게 된다.
-  가격 조회가 그냥 됐던 것은 운이 좋았던 것이지 괜찮았던 것이 아니다
-- **구매 하나가 두 경로로 온다** — `purchase()` 의 결과와 `Transaction.updates`.
-  트랜잭션 id 로 거르지 않으면 서버 검증이 두 번 돌고 완료 알림도 두 번 뜬다
-- **복원 항목은 칸이 하나만 빠져도 목록 전체가 버려진다.**
-  `godot_iap.gd::_is_valid_purchase_dictionary` 가 `id` `productId` `store`
-  `purchaseState` `transactionDate` `quantity` `isAutoRenewing` 을 전부 본다.
-  `store` 는 iOS 에서 반드시 `"apple"` 이다.
-  `store`·`quantity` 를 빠뜨려 **3건이 통째로 0건**이 됐고,
-  화면에는 "되찾을 구매가 없습니다" 로만 보였다
-- **결과 키가 `products`/`purchases` 가 아니라 `productsJson`/`purchasesJson`** 이고
-  배열이 아니라 **JSON 문자열**이다. 틀리면 조용히 빈 목록이 된다
-- **비동기 결과는 전부 `products_fetched` 신호로 나간다.** 이름이 어울리지 않지만
-  그게 계약이다 — 받는 쪽이 `method`+`requestId` 로 짝을 맞춘다
+Registered as ClassDB class `GodotIap`. Every call returns immediately with
+`{"requestId": "..."}`; results arrive later on a signal.
 
-## 진단
+| Method | |
+|---|---|
+| `initConnection(request_id)` | starts watching `Transaction.updates`. StoreKit has no connection, so this always succeeds |
+| `endConnection(request_id)` | stops watching |
+| `fetchProducts(request_json)` | → `products_fetched` with `productsJson` |
+| `requestPurchaseWithPayload(payload_json)` | reads `requestPurchase.apple.sku` → `purchase_updated` / `purchase_error` |
+| `finishTransaction(args_json)` | the second argument (`isConsumable`) is accepted and ignored; StoreKit 2 has no consume step |
+| `getAvailablePurchases(options_json)` | current entitlements, falling back to `Transaction.all` minus revoked |
+| `restorePurchases(request_id)` | `AppStore.sync()` — shows the Apple ID sign-in sheet |
 
-`getAvailablePurchases` 가 셀 때마다 앱의 결제 로그(`user://iap.txt`)에 한 줄 남긴다:
+| Signal | |
+|---|---|
+| `purchase_updated(purchase)` | bought, restored, or picked up from another device |
+| `purchase_error(error)` | includes `user-cancelled`, `network`, `deferred` |
+| `products_fetched(result)` | **every** async result comes back here, matched by `method` + `requestId` |
+| `connected` / `disconnected` | declared for contract compatibility |
+| `promoted_product` / `subscription_billing_issue` | **declared but never emitted.** `godot_iap.gd` connects them if they exist, so they have to exist |
+
+Results are JSON **strings** inside the dictionary (`productsJson`,
+`purchasesJson`), not arrays. That is the upstream contract, not a choice.
+
+## Gotchas this plugin already pays for
+
+All of these only show up on a real device — desktop has no StoreKit and runs a
+fake path.
+
+- **StoreKit calls that present UI must run on the main actor.** Call
+  `product.purchase()` or `AppStore.sync()` from a background `Task` and the
+  sheet appears but **the `await` never resumes** — cancel it and nothing comes
+  back, so your UI stays locked forever. Purchase was fixed first and restore
+  was missed, so this one cost two rounds.
+- **Emit Godot signals with `call_deferred`.** Swift `Task`s are off the main
+  thread, and the receiver is GDScript, which would then run script on that
+  thread. Price fetching worked by luck before this, not by design.
+- **One purchase arrives twice** — once as the result of `purchase()` and once
+  through `Transaction.updates`. Filter by transaction id or your server
+  verifies twice and the user sees two confirmations.
+- **One missing field throws away the whole restore list.**
+  `godot_iap.gd::_is_valid_purchase_dictionary` requires `id`, `productId`,
+  `store`, `purchaseState`, `transactionDate`, `quantity` and `isAutoRenewing`;
+  `store` must be `"apple"` on iOS. Omitting `store` and `quantity` turned 3
+  restored purchases into 0, and all the user saw was "nothing to restore".
+- **A cancel can arrive as an exception, not a result.** When the Apple ID
+  sign-in sheet interrupts, `userCancelled` comes through the `catch`. Treat
+  both as a cancel, or an ordinary cancel looks like a crash.
+- **"Cancelled" does not always mean cancelled.** If the connection drops while
+  the sheet is open, StoreKit reports `userCancelled`. This plugin watches
+  reachability with `NWPathMonitor` (passively — it issues no requests) and
+  reports `network` instead, so your app can say something true.
+
+## Debug log
+
+In debug builds only, the bridge appends to `Documents/iap.txt` in the app
+container:
 
 ```
-[StoreKit] 소유 조회 — entitlements 3 · all 3 (검증실패 0 · 환불 0) → 3건
+[StoreKit] storefront KOR
+[StoreKit] owned query — entitlements 3 · all 3 (unverified 0 · revoked 0) → 3
 ```
 
-**"아무것도 없다" 와 "있는데 안 넘어간다" 를 가른다.** 이 줄이 위 마지막 함정을 잡았다.
+It separates "there is nothing" from "there is something and it isn't getting
+through", which is what caught the restore bug above. Release builds don't even
+contain the call sites — shipping a diagnostic file would expose it to the user
+through file sharing.
 
-## 라이선스
+## Rebuilding
 
-MIT — `LICENSE` 를 볼 것.
+Only needed when you move to an engine version with a different plugin ABI.
+
+```bash
+./build.sh [path to godot-ios-plugins]
+```
+
+Swift bridge → ObjC++ plugin → `libtool` merge → two xcframeworks (debug and
+release). The harness's `SConstruct` must list `'godotstorekit'` as a plugin.
+Builds are path-clean: source paths are remapped and debug info is stripped, so
+the artifacts carry nothing about the machine that built them.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+**Not affiliated with, endorsed by, or produced by OpenIAP or hyodotdev.** Those
+names appear here only to describe what this plugin is compatible with.
+
+Built with [godot-ios-plugins](https://github.com/godotengine/godot-ios-plugins)
+(MIT) against Godot Engine headers (MIT, © Godot Engine contributors). StoreKit
+is Apple's framework and is linked, not redistributed.

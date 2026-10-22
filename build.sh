@@ -22,6 +22,7 @@ for kind in release debug; do
   swiftc -emit-library -static -emit-objc-header \
     -emit-objc-header-path "$WORK/GodotStoreKit-Swift.h" \
     -module-name GodotStoreKit -target "$TARGET" -sdk "$SDK" $EXTRA \
+    -file-prefix-map "$HERE=/godot-storekit" \
     -o "$WORK/swift-$kind.a" "$HERE/native/ios/StoreKitBridge.swift"
 done
 
@@ -47,12 +48,14 @@ for kind in release debug; do
   libtool -static -o "$WORK/merged-$kind.a" \
     "$HARNESS/bin/libgodotstorekit.arm64-ios.$kind.a" "$WORK/swift-$kind.a" 2>/dev/null
   # **디버그 정보를 떼어낸다.** 안 떼면 DWARF 에 **빌드한 기계의 절대 경로**가
-  # 그대로 박힌다 (`/Users/<이름>/Documents/...`) — 공개 저장소에 올라가는 파일이다.
+  # 그대로 박힌다 (`/Users/<이름>/Documents/...`) — 공개 저장소에 올라가는 파일이고,
+  # 받는 쪽에는 없는 경로라 쓸모도 없다.
   # 지우는 것은 디버그 심볼뿐이라 링크에 필요한 전역 심볼은 남는다
   # (실측: /Users 7 → 0, 전역 심볼 45개 그대로, 2.2MB → 427KB).
   #
-  # **원천(컴파일 플래그)에서 못 막는다** — ObjC++ 쪽은 하네스의 SConstruct 가
-  # 컴파일하는데 그건 우리 저장소가 아니고 임의 CCFLAGS 를 안 받는다.
+  # **Swift 쪽은 위에서 `-file-prefix-map` 으로 막았다.** 여기서 지우는 것은
+  # ObjC++ 쪽인데, 그건 하네스의 SConstruct 가 컴파일하므로(우리 저장소가 아니고
+  # 임의 CCFLAGS 를 안 받는다) 플래그를 꽂을 자리가 없다.
   strip -S "$WORK/merged-$kind.a"
   # **남으면 실패시킨다.** 조용히 새어 나가면 공개된 뒤에야 알게 된다.
   if strings -a "$WORK/merged-$kind.a" | grep -q '/Users/'; then
