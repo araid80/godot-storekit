@@ -46,6 +46,20 @@ echo "[3/4] 합치기"
 for kind in release debug; do
   libtool -static -o "$WORK/merged-$kind.a" \
     "$HARNESS/bin/libgodotstorekit.arm64-ios.$kind.a" "$WORK/swift-$kind.a" 2>/dev/null
+  # **디버그 정보를 떼어낸다.** 안 떼면 DWARF 에 **빌드한 기계의 절대 경로**가
+  # 그대로 박힌다 (`/Users/<이름>/Documents/...`) — 공개 저장소에 올라가는 파일이다.
+  # 지우는 것은 디버그 심볼뿐이라 링크에 필요한 전역 심볼은 남는다
+  # (실측: /Users 7 → 0, 전역 심볼 45개 그대로, 2.2MB → 427KB).
+  #
+  # **원천(컴파일 플래그)에서 못 막는다** — ObjC++ 쪽은 하네스의 SConstruct 가
+  # 컴파일하는데 그건 우리 저장소가 아니고 임의 CCFLAGS 를 안 받는다.
+  strip -S "$WORK/merged-$kind.a"
+  # **남으면 실패시킨다.** 조용히 새어 나가면 공개된 뒤에야 알게 된다.
+  if strings -a "$WORK/merged-$kind.a" | grep -q '/Users/'; then
+    echo "[!!] $kind 아카이브에 빌드 경로가 남았다:"
+    strings -a "$WORK/merged-$kind.a" | grep '/Users/' | sort -u | head
+    exit 1
+  fi
 done
 
 echo "[4/4] xcframework"

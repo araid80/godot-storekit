@@ -53,7 +53,7 @@ if ClassDB.can_instantiate("GodotReview"):
 
 ```bash
 git submodule add https://github.com/araid80/godot-storekit addons/storekit
-cd addons/storekit && git checkout v1.0.4 && ./install.sh
+cd addons/storekit && git checkout v1.0.5 && ./install.sh
 ```
 
 그다음 `export_presets.cfg` 의 iOS 프리셋:
@@ -109,3 +109,7 @@ addons/godot-iap/bin/godot_iap.gdextension   ← iOS 전용이라 파일째
 ```
 
 **"아무것도 없다" 와 "있는데 안 넘어간다" 를 가른다.** 이 줄이 위 마지막 함정을 잡았다.
+
+## 라이선스
+
+MIT — `LICENSE` 를 볼 것.
